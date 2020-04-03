@@ -8,10 +8,11 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
+    "got": "^10.7.0",
+    "redis": "^3.0.2",
     "restify": "^8.5.1",
-    "showdown": "^1.9.1",
-    "node-cache": "^5.1.0"
+    "showdown": "^1.9.1"
   }
 }

@@ -1,41 +1,63 @@
-const crypto = require('crypto');
+const args = process.argv.slice(2),
+  crypto = require('crypto'),
+  restify = require('restify'),
+  got = require('got'),
+  showdown = require('showdown'),
+  redis = require("redis"),
+  converter = new showdown.Converter(),
+  rds = redis.createClient(args[0] || 6379, args[1] || '127.0.0.1');
 
-const restify = require('restify'),
-    showdown = require('showdown'),
-    converter = new showdown.Converter();
-
-const NodeCache = require( "node-cache" );
-const myCache = new NodeCache( { stdTTL: 300, checkperiod: 600 } );
-
-converter.setFlavor('github');
-
+/**
+ * Section Init
+ */
+// restify
 const server = restify.createServer();
 server.use(restify.plugins.bodyParser({}));
+// showdown
+converter.setFlavor('github');
+// redis
+rds.on("error", (error) => {
+    console.error(error);
+});
+// staticpage
+const staticPageKey = args[2] || 'ALL';
+
+// client.set("key", "value", redis.print);
+// client.get("key", redis.print);
 
 // API 1: markdown to html
 server.post('/mdToHtml', (req, res, next) => {
     if (req.body.md !== undefined) {
-        const cacheKey = crypto.createHash('md5').update(req.body.md).digest('hex');
-        const cacheVal = myCache.get(cacheKey);
-        if (cacheVal === undefined) {
-            const htmlRaw = converter.makeHtml(req.body.md);
-            myCache.set(cacheKey, htmlRaw);
-            res.send(htmlRaw);
-        } else {
-            res.send(cacheVal);
-        }
+        const cacheKey = 'md:html:' + crypto.createHash('md5').update(req.body.md).digest('hex');
+        rds.get(cacheKey, (err, cacheVal) => {
+            if (!cacheVal) {
+                const htmlRaw = converter.makeHtml(req.body.md);
+                rds.set(cacheKey, htmlRaw, () => {
+                    rds.expire(cacheKey, 600);
+                });
+                res.send(htmlRaw);
+            } else {
+                res.send(cacheVal);
+                rds.expire(cacheKey, 600);
+            }
+            next();
+        });
     } else {
         res.send('');
+        next();
     }
-    next();
 });
 
+const cache_tmp_prefix = 'cache:tmp:';
 // API 2: set 60 seconds temp cache
 server.post('/cache', (req, res, next) => {
     if (req.body.raw !== undefined && req.body.raw !== '') {
         const cacheKey = crypto.createHash('md5').update(req.body.raw).digest('hex');
-        myCache.set(cacheKey, req.body.raw, 60);
-        res.send(cacheKey)
+        const rdKey = cache_tmp_prefix + cacheKey;
+        rds.set(rdKey, req.body.raw, () => {
+            rds.expire(rdKey, 60);
+        });
+        res.send(cacheKey);
     } else {
         res.send('');
     }
@@ -44,15 +66,89 @@ server.post('/cache', (req, res, next) => {
 
 // API 3: get temp cache
 server.get('/cache/:key', (req, res, next) => {
-    const cacheKey = req.params.key;
-    const cacheVal = myCache.get(cacheKey);
-    if (cacheVal === undefined) {
-        res.send('');
+    const rdKey = cache_tmp_prefix + req.params.key;
+    rds.get(rdKey, (err, cacheVal) => {
+        if (cacheVal) {
+            res.send(cacheVal);
+        } else {
+            res.send('');
+        }
+        next();
+    });
+});
+
+const patternTitle = /<title>(.*?)<\/title>/i;
+const patternDesc = /<meta.*?name="description".*?content="(.*?)".*?>/i;
+const tplMetaTimestamp = '<meta name="static:time" content="{}">';
+// API 4: set page html cache
+server.post('/staticpage', (req, res, next) => {
+    const siteName = req.header('sp-site-name', '');
+    if (siteName && req.header('sp-key', 'ALL') === staticPageKey) {
+        const pageUrl = req.body.pageUrl;
+        const title = req.body.title;               // <= 70 chars
+        const description = req.body.description;   // <= 150 chars
+        let htmlRaw = req.body.htmlRaw;             // document.documentElement.outerHTML
+
+        const headPos = htmlRaw.indexOf('<head>') + 6;
+        htmlRaw = htmlRaw.slice(0, headPos) +
+          tplMetaTimestamp.replace('{}', '' + new Date().getTime()) +
+          htmlRaw.slice(headPos);
+        if (description) {
+            if (htmlRaw.search(patternDesc) > 0) {
+                htmlRaw = htmlRaw.replace(patternDesc, '<meta name="description" content="' + description + '">');
+            } else {
+                htmlRaw = htmlRaw.slice(0, headPos) + '<meta name="description" content="' + description + '">' + htmlRaw.slice(headPos);
+            }
+        }
+        if (title) {
+            if (htmlRaw.search(patternTitle) > 0) {
+                htmlRaw = htmlRaw.replace(patternTitle, '<title>' + title + '</title>');
+            } else {
+                htmlRaw = htmlRaw.slice(0, headPos) + '<title>' + title + '</title>' + htmlRaw.slice(headPos);
+            }
+        }
+        const rdKey = 'SP:' + siteName + ':' + pageUrl;
+        rds.set(rdKey, htmlRaw, () => {
+            res.send('success');
+            next();
+        });
     } else {
-        res.send(cacheVal);
+        res.send('invalid');
+        next();
     }
 });
 
-server.listen(3068, function() {
+/* Headers SP
+    sp-site-name
+    sp-dynamic
+    sp-key
+ */
+// API 5: get page html cache
+server.get('/staticpage/:pageUrl', (req, res, next) => {
+    const host = req.header('host');
+    const siteName = req.header('sp-site-name', '');
+    const toDynamic = req.header('sp-dynamic', host + '/index.html');
+    const rdKey = 'SP:' + siteName + ':' + req.params.pageUrl;
+    rds.get(rdKey, (err, cacheVal) => {
+        if (cacheVal) {
+            res.send(cacheVal);
+            next();
+        } else {
+            got(toDynamic).then(response => {
+                res.send(response.body);
+                next();
+            }).catch(error => {
+                if (error.response) {
+                    res.send(error.response.body);
+                } else {
+                    res.send('invalid');
+                }
+                next();
+            });
+        }
+    });
+});
+
+server.listen(3068, () => {
     console.log('%s listening at %s:', server.name, server.url);
 });
