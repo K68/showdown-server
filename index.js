@@ -124,30 +124,34 @@ server.post('/staticpage', (req, res, next) => {
     sp-key
  */
 // API 5: get page html cache
-server.get('/staticpage/:pageUrl', (req, res, next) => {
+server.get('/staticpage/*', (req, res, next) => {
     const host = req.header('host');
     const siteName = req.header('sp-site-name', '');
     const toDynamic = req.header('sp-dynamic', host + '/index.html');
-    const rdKey = 'SP:' + siteName + ':' + req.params.pageUrl;
+    const rdKey = 'SP:' + siteName + ':' + req.url.split('/staticpage/')[1];
+    console.log(rdKey);
     rds.get(rdKey, (err, cacheVal) => {
+        res.header('content-type', 'text/html');
         if (cacheVal) {
-            res.send(cacheVal);
+            res.end(cacheVal);
             next();
         } else {
             got(toDynamic).then(response => {
-                res.send(response.body);
+                res.end(response.body);
                 next();
             }).catch(error => {
                 if (error.response) {
-                    res.send(error.response.body);
+                    res.end(error.response.body);
                 } else {
-                    res.send('invalid');
+                    res.end('invalid');
                 }
                 next();
             });
         }
     });
 });
+
+// TODO 站点基础js更新接口？
 
 server.listen(3068, () => {
     console.log('%s listening at %s:', server.name, server.url);
