@@ -79,9 +79,10 @@ server.get('/cache/:key', (req, res, next) => {
 
 const patternTitle = /<title>(.*?)<\/title>/i;
 const patternDesc = /<meta.*?name="description".*?content="(.*?)".*?>/i;
+const patternNoJs = /<noscript>(.*?)<\/noscript>/i;
 const tplMetaTimestamp = '<meta name="static:time" content="{}">';
 // API 4: set page html cache
-server.post('/staticpage', (req, res, next) => {
+server.post('/staticpage*', (req, res, next) => {
     const siteName = req.header('sp-site-name', '');
     if (siteName && req.header('sp-key', 'ALL') === staticPageKey) {
         const pageUrl = req.body.pageUrl;
@@ -98,6 +99,9 @@ server.post('/staticpage', (req, res, next) => {
                 htmlRaw = htmlRaw.replace(patternDesc, '<meta name="description" content="' + description + '">');
             } else {
                 htmlRaw = htmlRaw.slice(0, headPos) + '<meta name="description" content="' + description + '">' + htmlRaw.slice(headPos);
+            }
+            if (htmlRaw.search(patternNoJs) > 0) {
+                htmlRaw = htmlRaw.replace(patternNoJs, '<noscript>' + description + '</noscript>');
             }
         }
         if (title) {
