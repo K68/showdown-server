@@ -78,7 +78,7 @@ server.get('/cache/:key', (req, res, next) => {
 });
 
 const patternTitle = /<title>(.*?)<\/title>/i;
-const patternDesc = /<meta.*?name="description".*?content="(.*?)"[^<]*?>/i;
+const patternDesc = /<meta[^<]*?name="description".*?content="(.*?)"[^<]*?>/i;
 const patternNoJs = /<noscript>(.*?)<\/noscript>/i;
 const tplMetaTimestamp = '<meta name="static:time" content="{}">';
 // API 4: set page html cache
