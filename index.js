@@ -78,7 +78,7 @@ server.get('/cache/:key', (req, res, next) => {
 });
 
 const patternTitle = /<title>(.*?)<\/title>/i;
-const patternDesc = /<meta.*?name="description".*?content="(.*?)".*?>/i;
+const patternDesc = /<meta.*?name="description".*?content="(.*?)"[^<]*?>/i;
 const patternNoJs = /<noscript>(.*?)<\/noscript>/i;
 const tplMetaTimestamp = '<meta name="static:time" content="{}">';
 // API 4: set page html cache
@@ -135,7 +135,7 @@ server.get('/staticpage/*', (req, res, next) => {
     const rdKey = 'SP:' + siteName + ':' + req.url.split('/staticpage/')[1];
     console.log(rdKey);
     rds.get(rdKey, (err, cacheVal) => {
-        res.header('content-type', 'text/html');
+        res.header('content-type', 'text/html; charset=utf-8');
         if (cacheVal) {
             res.end(cacheVal);
             next();
