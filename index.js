@@ -155,6 +155,20 @@ server.get('/staticpage/*', (req, res, next) => {
     });
 });
 
+// API 6: delete page html cache
+server.del('/staticpage/*', (req, res, next) => {
+    const siteName = req.header('sp-site-name', '');
+    if (siteName && req.header('sp-key', 'ALL') === staticPageKey) {
+        const rdKey = 'SP:' + siteName + ':' + req.url.split('/staticpage/')[1];
+        console.log('del: ' + rdKey);
+        rds.del(rdKey);
+        res.send('');
+    } else {
+        res.send('invalid');
+    }
+    next();
+});
+
 // TODO 站点基础js更新接口？
 
 server.listen(3068, () => {
