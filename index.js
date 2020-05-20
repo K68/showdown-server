@@ -169,6 +169,26 @@ server.del('/staticpage/*', (req, res, next) => {
     next();
 });
 
+// API 7: get all page html cache keys
+server.get('/staticpage/keys', (req, res, next) => {
+    const siteName = req.header('sp-site-name', '');
+    if (siteName && req.header('sp-key', 'ALL') === staticPageKey) {
+        const rdKeyPrefix = 'SP:' + siteName + ':*';
+        rds.keys(rdKeyPrefix, (err, keys) => {
+            if (err) {
+                res.send('invalid');
+                next();
+            } else {
+                res.send(keys.map(i => i.substring(rdKeyPrefix.length - 1)));
+                next();
+            }
+        });
+    } else {
+        res.send('invalid');
+        next();
+    }
+});
+
 // TODO 站点基础js更新接口？
 
 server.listen(3068, () => {
