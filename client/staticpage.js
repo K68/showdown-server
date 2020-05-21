@@ -14,7 +14,7 @@
   const title = req.body.title;               // <= 70 chars
   const description = req.body.description;   // <= 150 chars
    */
-  function upload(pageUrl, title, description, expire) {
+  function upload(pageUrl, title, description, keywords, expire) {
     if (!uploaded && staticpage.uploadUrl) {
       uploaded = true;
       var ct = isCache();
@@ -24,6 +24,7 @@
           pageUrl,
           title,
           description,
+          keywords,
           htmlRaw,
         };
         var xhr = new XMLHttpRequest();
