@@ -79,6 +79,7 @@ server.get('/cache/:key', (req, res, next) => {
 
 const patternTitle = /<title>(.*?)<\/title>/i;
 const patternDesc = /<meta[^<]*?name="description".*?content="(.*?)"[^<]*?>/i;
+const patternKeys = /<meta[^<]*?name="keywords".*?content="(.*?)"[^<]*?>/i;
 const patternNoJs = /<noscript>(.*?)<\/noscript>/i;
 const tplMetaTimestamp = '<meta name="static:time" content="{}">';
 // API 4: set page html cache
@@ -88,6 +89,7 @@ server.post('/staticpage*', (req, res, next) => {
         const pageUrl = req.body.pageUrl;
         const title = req.body.title;               // <= 70 chars
         const description = req.body.description;   // <= 150 chars
+        const keywords = req.body.keywords;
         let htmlRaw = req.body.htmlRaw;             // document.documentElement.outerHTML
 
         const headPos = htmlRaw.indexOf('<head>') + 6;
@@ -102,6 +104,13 @@ server.post('/staticpage*', (req, res, next) => {
             }
             if (htmlRaw.search(patternNoJs) > 0) {
                 htmlRaw = htmlRaw.replace(patternNoJs, '<noscript>' + description + '</noscript>');
+            }
+        }
+        if (keywords) {
+            if (htmlRaw.search(patternKeys) > 0) {
+                htmlRaw = htmlRaw.replace(patternKeys, '<meta name="keywords" content="' + keywords + '">');
+            } else {
+                htmlRaw = htmlRaw.slice(0, headPos) + '<meta name="keywords" content="' + keywords + '">' + htmlRaw.slice(headPos);
             }
         }
         if (title) {
