@@ -86,45 +86,58 @@ const tplMetaTimestamp = '<meta name="static:time" content="{}">';
 server.post('/staticpage*', (req, res, next) => {
     const siteName = req.header('sp-site-name', '');
     if (siteName && req.header('sp-key', 'ALL') === staticPageKey) {
-        const pageUrl = req.body.pageUrl;
-        const title = req.body.title;               // <= 70 chars
-        const description = req.body.description;   // <= 150 chars
-        const keywords = req.body.keywords;
-        let htmlRaw = req.body.htmlRaw;             // document.documentElement.outerHTML
+        try {
+            const pageUrl = req.body.pageUrl;
+            const title = req.body.title;               // <= 70 chars
+            const description = req.body.description;   // <= 150 chars
+            const keywords = req.body.keywords;
+            let htmlRaw = req.body.htmlRaw;             // document.documentElement.outerHTML
 
-        const headPos = htmlRaw.indexOf('<head>') + 6;
-        htmlRaw = htmlRaw.slice(0, headPos) +
-          tplMetaTimestamp.replace('{}', '' + new Date().getTime()) +
-          htmlRaw.slice(headPos);
-        if (description) {
-            if (htmlRaw.search(patternDesc) > 0) {
-                htmlRaw = htmlRaw.replace(patternDesc, '<meta name="description" content="' + description + '">');
+            if (htmlRaw) {
+                const headPos = htmlRaw.indexOf('<head>') + 6;
+                htmlRaw = htmlRaw.slice(0, headPos) +
+                  tplMetaTimestamp.replace('{}', '' + new Date().getTime()) +
+                  htmlRaw.slice(headPos);
+                if (description) {
+                    if (htmlRaw.search(patternDesc) > 0) {
+                        htmlRaw = htmlRaw.replace(patternDesc, '<meta name="description" content="' + description + '">');
+                    } else {
+                        htmlRaw = htmlRaw.slice(0, headPos) + '<meta name="description" content="' + description + '">' + htmlRaw.slice(headPos);
+                    }
+                    if (htmlRaw.search(patternNoJs) > 0) {
+                        htmlRaw = htmlRaw.replace(patternNoJs, '<noscript>' + description + '</noscript>');
+                    }
+                }
+                if (keywords) {
+                    if (htmlRaw.search(patternKeys) > 0) {
+                        htmlRaw = htmlRaw.replace(patternKeys, '<meta name="keywords" content="' + keywords + '">');
+                    } else {
+                        htmlRaw = htmlRaw.slice(0, headPos) + '<meta name="keywords" content="' + keywords + '">' + htmlRaw.slice(headPos);
+                    }
+                }
+                if (title) {
+                    if (htmlRaw.search(patternTitle) > 0) {
+                        htmlRaw = htmlRaw.replace(patternTitle, '<title>' + title + '</title>');
+                    } else {
+                        htmlRaw = htmlRaw.slice(0, headPos) + '<title>' + title + '</title>' + htmlRaw.slice(headPos);
+                    }
+                }
+                const rdKey = 'SP:' + siteName + ':' + pageUrl;
+                rds.set(rdKey, htmlRaw, () => {
+                    res.send('success');
+                    next();
+                });
+
             } else {
-                htmlRaw = htmlRaw.slice(0, headPos) + '<meta name="description" content="' + description + '">' + htmlRaw.slice(headPos);
+                res.send('invalid');
+                next();
             }
-            if (htmlRaw.search(patternNoJs) > 0) {
-                htmlRaw = htmlRaw.replace(patternNoJs, '<noscript>' + description + '</noscript>');
-            }
-        }
-        if (keywords) {
-            if (htmlRaw.search(patternKeys) > 0) {
-                htmlRaw = htmlRaw.replace(patternKeys, '<meta name="keywords" content="' + keywords + '">');
-            } else {
-                htmlRaw = htmlRaw.slice(0, headPos) + '<meta name="keywords" content="' + keywords + '">' + htmlRaw.slice(headPos);
-            }
-        }
-        if (title) {
-            if (htmlRaw.search(patternTitle) > 0) {
-                htmlRaw = htmlRaw.replace(patternTitle, '<title>' + title + '</title>');
-            } else {
-                htmlRaw = htmlRaw.slice(0, headPos) + '<title>' + title + '</title>' + htmlRaw.slice(headPos);
-            }
-        }
-        const rdKey = 'SP:' + siteName + ':' + pageUrl;
-        rds.set(rdKey, htmlRaw, () => {
-            res.send('success');
+
+        } catch (e) {
+            res.send('invalid');
             next();
-        });
+        }
+
     } else {
         res.send('invalid');
         next();
