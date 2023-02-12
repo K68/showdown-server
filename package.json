@@ -10,7 +10,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "got": "^10.7.0",
+    "got": "^12.5.3",
     "redis": "^3.0.2",
     "restify": "^8.5.1",
     "showdown": "^1.9.1"
